@@ -7,7 +7,7 @@ from typing import Optional
 from discord import Embed, Colour
 from motorsport.models import (
     Team, Driver, RaceResult, QualifierResult, TeamRank,
-    League, Weather, WorldEvent, ALL_ATTRIBUTES
+    League, Weather, WorldEvent,
 )
 from bot.config import BotConfig
 
