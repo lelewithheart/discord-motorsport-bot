@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  bot:
+    build: .
+    container_name: motorsport-bot
+    restart: unless-stopped
+    environment:
+      # REQUIRED: Your Discord bot token
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      # Optional: Guild ID for faster slash command sync
+      - GUILD_ID=${GUILD_ID:-0}
+      # Database: Postgres (or SQLite fallback)
+      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:///./data/motorsport.db}
+      # Game settings
+      - RACES_PER_SEASON=${RACES_PER_SEASON:-12}
+      - DEBUG=${DEBUG:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      # Persist SQLite database if not using Postgres
+      - bot-data:/app/data
+    # Optional: depends on PostgreSQL
+    # depends_on:
+    #   - db
+
+  # Uncomment for PostgreSQL:
+  # db:
+  #   image: postgres:16-alpine
+  #   container_name: motorsport-db
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: motorsport
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+  #     POSTGRES_DB: motorsport
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+
+volumes:
+  bot-data:
+  # postgres-data:

@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "discord-motorsport-universe"
+version = "1.0.0"
+description = "Multiplayer Motorsport Management System for Discord"
+requires-python = ">=3.11"
+dependencies = [
+    "discord.py>=2.4.0",
+    "SQLAlchemy>=2.0.0",
+    "aiosqlite>=0.20.0",
+    "APScheduler>=3.10.0",
+]
