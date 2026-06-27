@@ -19,8 +19,9 @@ COPY src/ ./src/
 COPY bot/ ./bot/
 
 # Environment variables
-ENV PYTHONPATH=/app/src:${PYTHONPATH}
+ENV PYTHONPATH=/app/src:/app:${PYTHONPATH}
 ENV PYTHONUNBUFFERED=1
+ENV PORT=8080
 
 # Run the bot
 CMD ["python", "-m", "bot.main"]
