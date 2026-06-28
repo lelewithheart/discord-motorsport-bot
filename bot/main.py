@@ -18,6 +18,9 @@ from bot.cogs import (
     TeamCog, RaceCog, DriverCog, QualifierCog,
     SeasonCog, MarketCog, SponsorCog, AcademyCog,
     LeagueCog, AdminCog, GeneralCog,
+    TutorialCog, WikiCog,
+    SetupCog, TrainingCog,
+    RndCog, DashboardCog,
 )
 from motorsport.data.database import init_db
 
@@ -90,6 +93,9 @@ class MotorsportBot(commands.Bot):
             TeamCog, RaceCog, DriverCog, QualifierCog,
             SeasonCog, MarketCog, SponsorCog, AcademyCog,
             LeagueCog, AdminCog, GeneralCog,
+            TutorialCog, WikiCog,
+            SetupCog, TrainingCog,
+            RndCog, DashboardCog,
         ]
         for cog_cls in cogs:
             try:
@@ -118,6 +124,14 @@ class MotorsportBot(commands.Bot):
             name="F1 | /help"
         )
         await self.change_presence(activity=activity)
+
+        # Start daily race scheduler
+        try:
+            from bot.scheduler import start_scheduler
+            start_scheduler(self)
+            log.info("⏰ Scheduler started")
+        except Exception as e:
+            log.warning(f"⚠️ Scheduler could not start: {e}")
 
 
 async def main():

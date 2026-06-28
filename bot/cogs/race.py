@@ -1,166 +1,134 @@
-"""Race commands cog."""
+"""Race commands cog — V2: shows schedule + past results."""
 from __future__ import annotations
 import discord
 from discord.ext import commands
 from discord import app_commands
-from motorsport.simulation.engine import SimulationEngine, WeatherSystem
-from motorsport.systems.events import EventEngine
-from motorsport.simulation.driver_generator import DriverDevelopment
-from motorsport.data.repository import TeamRepo, DriverRepo
+from datetime import date, datetime
 from motorsport.data.database import get_session_maker
+from motorsport.data.repository import TeamRepo, RaceScheduleRepo, TrackRepo
 from motorsport.data.models import RaceResultModel
-from bot.embeds import race_embed
-from datetime import datetime
+from bot.embeds import E, C
+from sqlalchemy import select
 
 
 class RaceCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.session_maker = get_session_maker()
-        self.engine = SimulationEngine(universe_id="discord")
-        self.driver_dev = DriverDevelopment()
-        self.events = EventEngine()
 
-    @app_commands.command(name="race", description="Simuliere das nächste Rennen")
-    async def race(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-
+    @app_commands.command(name="race", description="Nächstes Rennen & Schedule")
+    async def race_next(self, interaction: discord.Interaction):
+        """Show upcoming races."""
+        await interaction.response.defer(ephemeral=True)
         async with self.session_maker() as session:
             teams = await TeamRepo.get_by_owner(session, interaction.user.id)
             if not teams:
-                await interaction.followup.send("❌ Du hast kein Team. Erstelle eines mit `/team_create`")
+                await interaction.followup.send("❌ Kein Team")
                 return
+            team = teams[0]
 
-            db_team = teams[0]
-            team = await self._load_team(session, db_team)
-
-            if not team.main_driver_1 or not team.main_driver_2:
-                await interaction.followup.send("❌ Du brauchst 2 Hauptfahrer für ein Rennen!")
-                return
-
-            race_number = team.current_race + 1
-            season = team.active_season
-
-            # Run race
-            result = self.engine.simulate_race(team, season, race_number)
-
-            # Driver development
-            for i, driver in enumerate([team.main_driver_1, team.main_driver_2]):
-                driver_result = result.driver_1_result if i == 0 else result.driver_2_result
-                if driver_result and not driver_result.dnfs:
-                    score = max(0, 1.0 - (driver_result.position - 1) * 0.1)
-                    self.driver_dev.develop(driver, team.performance_rating, score)
-                    driver.races_driven += 1
-
-            # Events
-            for driver in [team.main_driver_1, team.main_driver_2]:
-                events = self.events.roll_events(driver, team, season, race_number)
-                for event in events:
-                    self.events.apply_event(driver, team, event)
-                    result.race_events.append(event.description)
-
-            # Update team
-            team.current_race = race_number
-            team.season_points += result.team_points
-            driver_results = [result.driver_1_result, result.driver_2_result]
-            for dr in driver_results:
-                if dr and dr.position == 1:
-                    team.wins += 1
-                if dr and dr.position <= 3:
-                    team.podiums += 1
-
-            team.recalculate_performance()
-
-            # Save race result
-            race_model = RaceResultModel(
-                team_id=db_team.id,
-                season=season,
-                race_number=race_number,
-                track_name=result.track_name,
-                weather=result.weather.value,
-                driver_1_position=result.driver_1_result.position if result.driver_1_result else None,
-                driver_2_position=result.driver_2_result.position if result.driver_2_result else None,
-                driver_1_time_ms=result.driver_1_result.total_time_ms if result.driver_1_result else None,
-                driver_2_time_ms=result.driver_2_result.total_time_ms if result.driver_2_result else None,
-                team_points=result.team_points,
-                race_events=result.race_events,
-                simulated_at=datetime.utcnow(),
+            schedule = await RaceScheduleRepo.get_by_season(
+                session, team.active_season
             )
-            session.add(race_model)
 
-            # Update DB team stats
-            db_team.current_race = race_number
-            db_team.season_points = team.season_points
-            db_team.wins = team.wins
-            db_team.podiums = team.podiums
-            db_team.performance_rating = team.performance_rating
-            await session.commit()
+            if not schedule:
+                await interaction.followup.send(
+                    "📅 Noch kein Rennkalender erstellt. "
+                    "Rennen starten automatisch um 20:00 sobald die Saison beginnt."
+                )
+                return
 
-        embed = race_embed(result, team)
+            embed = discord.Embed(
+                title=f"🏁 Rennkalender — Saison {team.active_season}",
+                colour=0xE10600,
+            )
+
+            upcoming = [s for s in schedule if not s.is_completed]
+            completed = [s for s in schedule if s.is_completed]
+
+            if upcoming:
+                next_race = upcoming[0]
+                track = await TrackRepo.get_by_id(session, next_race.track_id)
+                track_name = track.name if track else "?"
+                days_until = (next_race.race_date - date.today()).days
+                countdown = "HEUTE! ⏰" if days_until == 0 else f"in {days_until} Tag(en)"
+
+                embed.description = (
+                    f"**Nächstes Rennen:** R{next_race.race_number} — {track_name}\n"
+                    f"**Datum:** {next_race.race_date} ({countdown})\n"
+                    f"**Quali-Deadline:** 19:30\n"
+                    f"**Rennen:** Automatisch um 20:00"
+                )
+
+                # Show all upcoming
+                lines = []
+                for s in upcoming[:5]:
+                    t = await TrackRepo.get_by_id(session, s.track_id)
+                    tn = t.name if t else "?"
+                    lines.append(f"R{s.race_number}: {tn} ({s.race_date})")
+                if lines:
+                    embed.add_field(name="📅 Kommende Rennen", value="\n".join(lines), inline=False)
+            else:
+                embed.description = "✅ Alle Rennen dieser Saison abgeschlossen!"
+
+            if completed:
+                embed.set_footer(text=f"✅ {len(completed)}/{len(schedule)} Rennen gefahren")
+
         await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="race_result", description="Letztes Rennergebnis")
     async def race_result(self, interaction: discord.Interaction):
+        """Show last race result from DB."""
+        await interaction.response.defer(ephemeral=True)
         async with self.session_maker() as session:
             teams = await TeamRepo.get_by_owner(session, interaction.user.id)
             if not teams:
-                await interaction.response.send_message("❌ Kein Team gefunden")
+                await interaction.followup.send("❌ Kein Team")
+                return
+            team = teams[0]
+
+            # Get latest race result from DB
+            result = await session.execute(
+                select(RaceResultModel)
+                .where(RaceResultModel.team_id == team.id)
+                .order_by(RaceResultModel.race_number.desc())
+                .limit(1)
+            )
+            race_result = result.scalar_one_or_none()
+
+            if not race_result:
+                await interaction.followup.send(
+                    "🏁 Noch kein Rennen gefahren. Das erste Rennen startet automatisch um 20:00!"
+                )
                 return
 
-            db_team = teams[0]
-            team = await self._load_team(session, db_team)
-
-        embed = discord.Embed(
-            title=f"Letztes Rennen: Runde {team.current_race}",
-            colour=0x3498DB,
-            description=f"Saison {team.active_season} • {team.wins} Siege • {team.season_points} Punkte",
-        )
-        embed.add_field(name="Team Perf", value=f"{team.performance_rating}/100")
-        await interaction.response.send_message(embed=embed)
-
-    async def _load_team(self, session, db_team):
-        from motorsport.models import Team, Driver, DriverAttributes, HiddenStats, Personality, DriverSlot
-        db_drivers = await DriverRepo.get_by_team(session, db_team.id)
-
-        team = Team(
-            id=db_team.id, name=db_team.name, owner_id=db_team.owner_id,
-            league=db_team.league, budget=db_team.budget,
-            performance_rating=db_team.performance_rating,
-            infrastructure_level=db_team.infrastructure_level,
-            wins=db_team.wins, podiums=db_team.podiums,
-            season_points=db_team.season_points,
-            total_qualifier_time_ms=db_team.total_qualifier_time_ms,
-            qualifier_count=db_team.qualifier_count,
-            active_season=db_team.active_season,
-            current_race=db_team.current_race,
-        )
-
-        for db_d in db_drivers:
-            d = Driver(
-                id=db_d.id, first_name=db_d.first_name, last_name=db_d.last_name,
-                nationality=db_d.nationality, age=db_d.age,
-                attributes=DriverAttributes(
-                    speed=db_d.speed, consistency=db_d.consistency,
-                    racecraft=db_d.racecraft, overtaking=db_d.overtaking,
-                    tyre_management=db_d.tyre_management,
-                    qualifying_pace=db_d.qualifying_pace,
-                    wet_performance=db_d.wet_performance,
-                    mental_strength=db_d.mental_strength,
-                ),
-                hidden=HiddenStats(
-                    potential=db_d.potential, growth_rate=db_d.growth_rate,
-                    aggression=db_d.aggression, risk_taking=db_d.risk_taking,
-                    pressure_handling=db_d.pressure_handling,
-                ),
-                personality=Personality(db_d.personality),
-                morale=db_d.morale, wins=db_d.wins, podiums=db_d.podiums,
-                races_driven=db_d.races_driven,
+            # Build embed
+            embed = discord.Embed(
+                title=f"🏁 Rennen {race_result.race_number} — {race_result.track_name}",
+                colour=0xE10600,
+                description=f"Weather: {race_result.weather} • Saison {race_result.season}",
             )
-            if db_d.slot == 1:
-                team.main_driver_1 = d
-            elif db_d.slot == 2:
-                team.main_driver_2 = d
-            elif db_d.slot == 3:
-                team.reserve_driver = d
 
-        return team
+            d1_pos = race_result.driver_1_position
+            d2_pos = race_result.driver_2_position
+            if d1_pos is not None:
+                medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(d1_pos, f"P{d1_pos}")
+                time_s = (race_result.driver_1_time_ms or 0) / 1000
+                dnf = "💥 DNF" if time_s > 99999 else f"{time_s:.3f}s"
+                embed.add_field(name=f"Fahrer 1", value=f"{medal} • {dnf}", inline=True)
+            if d2_pos is not None:
+                medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(d2_pos, f"P{d2_pos}")
+                time_s = (race_result.driver_2_time_ms or 0) / 1000
+                dnf = "💥 DNF" if time_s > 99999 else f"{time_s:.3f}s"
+                embed.add_field(name=f"Fahrer 2", value=f"{medal} • {dnf}", inline=True)
+
+            embed.add_field(name="Punkte", value=str(race_result.team_points), inline=True)
+
+            if race_result.race_events:
+                embed.add_field(name="Ereignisse", value="\n".join(race_result.race_events[:3]), inline=False)
+
+        await interaction.followup.send(embed=embed)
+
+
+async def setup(bot: commands.Bot):
+    await bot.add_cog(RaceCog(bot))

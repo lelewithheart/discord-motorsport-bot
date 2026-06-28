@@ -6,7 +6,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from sqlalchemy import (
-    Column, String, Integer, Float, Boolean, DateTime, Text, 
+    Column, String, Integer, Float, Boolean, DateTime, Date, Text,
     BigInteger, Enum as SAEnum, ForeignKey, UniqueConstraint, JSON,
     DECIMAL, Index
 )
@@ -82,6 +82,10 @@ class TeamModel(Base):
     sponsors = relationship("SponsorModel", back_populates="team", cascade="all, delete-orphan")
     upgrades = relationship("TeamUpgradeModel", back_populates="team", cascade="all, delete-orphan")
     qualifiers = relationship("QualifierModel", back_populates="team", cascade="all, delete-orphan")
+    setups = relationship("SetupModel", back_populates="team", cascade="all, delete-orphan")
+    training_sessions = relationship("TrainingSessionModel", back_populates="team", cascade="all, delete-orphan")
+    rnd_upgrades = relationship("RndUpgradeModel", back_populates="team", cascade="all, delete-orphan")
+    rnd_points = relationship("RndPointsModel", back_populates="team", cascade="all, delete-orphan")
 
 
 # ─── Driver ────────────────────────────────────────────────────────────────
@@ -291,3 +295,106 @@ class ScoutModel(Base):
     region = Column(String(30), nullable=True)
     cost_per_season = Column(DECIMAL(12, 2), default=100_000)
     hired_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ─── Track ──────────────────────────────────────────────────────────────────
+
+class TrackModel(Base):
+    __tablename__ = "tracks"
+
+    id = Column(String(36), primary_key=True, default=_uuid)
+    name = Column(String(64), nullable=False, unique=True)
+    country = Column(String(64))
+    req_speed = Column(Float, default=0.5)
+    req_acceleration = Column(Float, default=0.5)
+    req_downforce = Column(Float, default=0.5)
+    req_braking = Column(Float, default=0.5)
+    req_tyre_management = Column(Float, default=0.5)
+    lap_length_km = Column(Float, default=5.0)
+
+
+# ─── Setup ──────────────────────────────────────────────────────────────────
+
+class SetupModel(Base):
+    __tablename__ = "setups"
+
+    id = Column(String(36), primary_key=True, default=_uuid)
+    team_id = Column(String(36), ForeignKey("teams.id"), nullable=False)
+    track_id = Column(String(36), ForeignKey("tracks.id"), nullable=True)
+    name = Column(String(64), default="Default")
+    front_wing = Column(Integer, default=10)
+    rear_wing = Column(Integer, default=10)
+    suspension = Column(Integer, default=10)
+    gear_ratio = Column(Integer, default=10)
+    tire_compound = Column(Integer, default=10)
+    is_default = Column(Boolean, default=False)
+
+    team = relationship("TeamModel", back_populates="setups")
+
+
+# ─── Training Session ───────────────────────────────────────────────────────
+
+class TrainingSessionModel(Base):
+    __tablename__ = "training_sessions"
+
+    id = Column(String(36), primary_key=True, default=_uuid)
+    team_id = Column(String(36), ForeignKey("teams.id"), nullable=False)
+    driver_id = Column(String(36), ForeignKey("drivers.id"), nullable=False)
+    track_id = Column(String(36), ForeignKey("tracks.id"), nullable=False)
+    season = Column(Integer, nullable=False)
+    race_number = Column(Integer, nullable=False)
+    lap_count = Column(Integer, default=0)
+    best_lap_ms = Column(Integer, nullable=True)
+    avg_lap_ms = Column(Integer, nullable=True)
+    setup_id = Column(String(36), ForeignKey("setups.id"), nullable=True)
+    session_date = Column(DateTime, default=datetime.utcnow)
+
+    team = relationship("TeamModel", back_populates="training_sessions")
+
+
+# ─── R&D Upgrades ───────────────────────────────────────────────────────────
+
+class RndUpgradeModel(Base):
+    __tablename__ = "rnd_upgrades"
+
+    id = Column(String(36), primary_key=True, default=_uuid)
+    team_id = Column(String(36), ForeignKey("teams.id"), nullable=False)
+    component = Column(String(32), nullable=False)
+    level = Column(Integer, default=1)
+
+    team = relationship("TeamModel", back_populates="rnd_upgrades")
+
+    __table_args__ = (
+        UniqueConstraint("team_id", "component", name="uq_team_component"),
+    )
+
+
+# ─── R&D Points ─────────────────────────────────────────────────────────────
+
+class RndPointsModel(Base):
+    __tablename__ = "rnd_points"
+
+    id = Column(String(36), primary_key=True, default=_uuid)
+    team_id = Column(String(36), ForeignKey("teams.id"), nullable=False)
+    season = Column(Integer, nullable=False)
+    points = Column(Integer, default=0)
+
+    team = relationship("TeamModel", back_populates="rnd_points")
+
+    __table_args__ = (
+        UniqueConstraint("team_id", "season", name="uq_team_season_rnd"),
+    )
+
+
+# ─── Race Schedule ──────────────────────────────────────────────────────────
+
+class RaceScheduleModel(Base):
+    __tablename__ = "race_schedule"
+
+    id = Column(String(36), primary_key=True, default=_uuid)
+    season = Column(Integer, nullable=False)
+    race_number = Column(Integer, nullable=False)
+    track_id = Column(String(36), ForeignKey("tracks.id"), nullable=False)
+    race_date = Column(Date, nullable=False)
+    qualifier_deadline = Column(DateTime, nullable=True)
+    is_completed = Column(Boolean, default=False)

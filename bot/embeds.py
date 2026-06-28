@@ -307,6 +307,84 @@ def event_embed(events: list[WorldEvent]) -> Embed:
 
 # ─── Help Embed ────────────────────────────────────────────────────────────
 
+# Detailed command metadata for the interactive help system
+_COMMAND_DETAILS: dict[str, list[dict[str, str]]] = {
+    "🏁 Team": [
+        {"name": "/team", "desc": "Zeigt deine Team-Übersicht mit Fahrern, Budget & Stats", "usage": "/team"},
+        {"name": "/team create <Name>", "desc": "Erstelle ein neues Team mit eigenem Namen", "usage": "/team create MeisterRennstall"},
+        {"name": "/team lineup", "desc": "Ändere die Aufstellung deiner Fahrer", "usage": "/team lineup"},
+        {"name": "/team upgrade", "desc": "Kaufe Upgrades für Infrastruktur & Co.", "usage": "/team upgrade"},
+    ],
+    "🏎️ Rennen": [
+        {"name": "/race", "desc": "Simuliere das nächste Rennen deiner Saison", "usage": "/race"},
+        {"name": "/race result", "desc": "Zeigt das letzte Rennergebnis mit Details", "usage": "/race result"},
+    ],
+    "👤 Fahrer": [
+        {"name": "/drivers", "desc": "Liste aller Fahrer in deinem Team", "usage": "/drivers"},
+        {"name": "/driver <id>", "desc": "Detaillierte Fahrer-Info mit Attributen & Persönlichkeit", "usage": "/driver 42"},
+        {"name": "/train", "desc": "Trainiere deine Fahrer, um ihre Werte zu verbessern", "usage": "/train"},
+    ],
+    "⏱️ Qualifier": [
+        {"name": "/qualifier", "desc": "Qualifier-Übersicht für das aktuelle Rennwochenende", "usage": "/qualifier"},
+        {"name": "/qualifier run", "desc": "Fahre eine schnelle Runde im Qualifier", "usage": "/qualifier run"},
+        {"name": "/qualifier ranking", "desc": "Ligaweites Qualifier-Ranking aller Teams", "usage": "/qualifier ranking"},
+    ],
+    "💰 Wirtschaft": [
+        {"name": "/market", "desc": "Durchsuche den Transfermarkt nach verfügbaren Fahrern", "usage": "/market"},
+        {"name": "/market buy <id>", "desc": "Kaufe einen Free Agent vom Transfermarkt", "usage": "/market buy 7"},
+        {"name": "/sponsor", "desc": "Übersicht über deine Sponsorenverträge", "usage": "/sponsor"},
+    ],
+    "📊 Saison": [
+        {"name": "/season", "desc": "Aktueller Saison-Status: Rennen, Punkte, Budget", "usage": "/season"},
+        {"name": "/season standings", "desc": "Zeigt die aktuelle Saison-Tabelle deiner Liga", "usage": "/season standings"},
+    ],
+    "🎓 Academy": [
+        {"name": "/academy", "desc": "Übersicht über deine Academy und Nachwuchsfahrer", "usage": "/academy"},
+        {"name": "/academy scout", "desc": "Setze einen Scout ein, um junge Talente zu entdecken", "usage": "/academy scout"},
+    ],
+    "🏆 Ligen": [
+        {"name": "/league", "desc": "Info über deine aktuelle Liga (F1–F10)", "usage": "/league"},
+        {"name": "/league ranking", "desc": "Globales Ranking aller Teams über alle Ligen hinweg", "usage": "/league ranking"},
+    ],
+    "⭐ Premium": [
+        {"name": "/premium", "desc": "Premium-Features, Preise & Vorteile", "usage": "/premium"},
+        {"name": "/premium status", "desc": "Zeigt deinen aktuellen Premium-Status an", "usage": "/premium status"},
+    ],
+    "📚 Wiki & Guides": [
+        {"name": "/wiki", "desc": "Wiki-Übersicht mit Kategorien oder einzelner Artikel", "usage": "/wiki"},
+        {"name": "/guide", "desc": "Thematische Guides zu Wirtschaft, Fahrern & mehr", "usage": "/guide"},
+        {"name": "/tutorial", "desc": "Starte eine interaktive 5-Schritt Tutorial-Tour", "usage": "/tutorial"},
+    ],
+}
+
+
+def command_detail_embed(category: str, commands: list[dict[str, str]]) -> Embed:
+    """Build a detailed embed for a specific help category.
+
+    Parameters
+    ----------
+    category : str
+        The category name (including emoji prefix).
+    commands : list[dict[str, str]]
+        List of commands, each with 'name', 'desc', and 'usage' keys.
+    """
+    embed = Embed(
+        title=f"📖 {category}",
+        colour=C["primary"],
+        description=f"Alle Befehle in der Kategorie **{category}**:",
+    )
+
+    for cmd in commands:
+        embed.add_field(
+            name=f"`{cmd['name']}`",
+            value=f"{cmd['desc']}\n🔹 **Beispiel:** `{cmd['usage']}`",
+            inline=False,
+        )
+
+    embed.set_footer(text="Wähle eine andere Kategorie aus dem Menü • /help")
+    return embed
+
+
 def help_embed() -> Embed:
     embed = Embed(
         title=f"{E['f1']} DISCORD MOTORSPORT UNIVERSE",

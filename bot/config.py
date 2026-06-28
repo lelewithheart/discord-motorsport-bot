@@ -20,7 +20,7 @@ class BotConfig:
     )
 
     # Game settings
-    races_per_season: int = int(os.getenv("RACES_PER_SEASON", "12"))
+    races_per_season: int = int(os.getenv("RACES_PER_SEASON", "14"))
     qualifier_window_hours: int = int(os.getenv("QUALIFIER_WINDOW_HOURS", "24"))
     seed: int = int(os.getenv("SIMULATION_SEED", "0")) or None
 

@@ -5,7 +5,8 @@ from motorsport.data.database import (
 from motorsport.data.models import (
     PlayerModel, TeamModel, DriverModel, SponsorModel, TeamUpgradeModel,
     QualifierModel, RaceResultModel, SeasonRankingModel, WorldEventModel,
-    TransferModel, ScoutModel,
+    TransferModel, ScoutModel, TrackModel, SetupModel, TrainingSessionModel,
+    RndUpgradeModel, RndPointsModel, RaceScheduleModel,
 )
 from motorsport.data.repository import (
     PlayerRepo, TeamRepo, DriverRepo, QualifierRepo, RankingRepo,

@@ -19,12 +19,12 @@ class DriverCog(commands.Cog):
         async with self.session_maker() as session:
             teams = await TeamRepo.get_by_owner(session, interaction.user.id)
             if not teams:
-                await interaction.response.send_message("❌ Kein Team gefunden")
+                await interaction.response.send_message("❌ Kein Team gefunden", ephemeral=True)
                 return
             drivers = await DriverRepo.get_by_team(session, teams[0].id)
 
         if not drivers:
-            await interaction.response.send_message("❌ Keine Fahrer im Team")
+            await interaction.response.send_message("❌ Keine Fahrer im Team", ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -39,7 +39,7 @@ class DriverCog(commands.Cog):
                 value=f"Alter: {d.age} • OVR: {(d.speed+d.consistency+d.racecraft+d.overtaking+d.tyre_management+d.qualifying_pace+d.wet_performance+d.mental_strength)/8:.1f} • {d.personality.title()}",
                 inline=False,
             )
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="driver", description="Details zu einem Fahrer")
     @app_commands.describe(driver_id="Fahrer-ID")
@@ -47,7 +47,7 @@ class DriverCog(commands.Cog):
         async with self.session_maker() as session:
             db_d = await DriverRepo.get(session, driver_id)
             if not db_d:
-                await interaction.response.send_message("❌ Fahrer nicht gefunden")
+                await interaction.response.send_message("❌ Fahrer nicht gefunden", ephemeral=True)
                 return
             from motorsport.models import Driver, DriverAttributes, HiddenStats, Personality
             d = Driver(
@@ -70,14 +70,14 @@ class DriverCog(commands.Cog):
                 morale=db_d.morale, wins=db_d.wins, podiums=db_d.podiums,
                 races_driven=db_d.races_driven,
             )
-        await interaction.response.send_message(embed=driver_embed(d, "Dein Team"))
+        await interaction.response.send_message(embed=driver_embed(d, "Dein Team"), ephemeral=True)
 
     @app_commands.command(name="train", description="Training für deine Fahrer")
     async def train(self, interaction: discord.Interaction):
         async with self.session_maker() as session:
             teams = await TeamRepo.get_by_owner(session, interaction.user.id)
             if not teams:
-                await interaction.response.send_message("❌ Kein Team")
+                await interaction.response.send_message("❌ Kein Team", ephemeral=True)
                 return
             drivers = await DriverRepo.get_by_team(session, teams[0].id)
             dev = DriverDevelopment()
@@ -116,4 +116,4 @@ class DriverCog(commands.Cog):
             description="Deine Fahrer haben trainiert:",
         )
         embed.add_field(name="Trainiert", value="\n".join(trained))
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
